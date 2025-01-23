@@ -63,13 +63,13 @@ async def health_check():
     Health check endpoint.
     """
     return {"status": "healthy"}
-
+@app.get("/")
+async def hello_world():
+     """
+     Hello World endpoint.
+     """
+     return {"message": "Hello, World!"}
 if __name__ == "_main_":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    @app.get("/hello")
-    async def hello_world():
-        """
-        Hello World endpoint.
-        """
-        return {"message": "Hello, World!"}
+  
