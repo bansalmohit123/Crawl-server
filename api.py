@@ -53,7 +53,7 @@ async def crawl_website():
         urls = get_pydantic_ai_docs_urls(str(sitemap_request.url))
         if urls:
             logger.info(f"Found {len(urls)} URLs to crawl")
-            results = await crawl_parallel(urls)
+            results = await crawl_sequential(urls)
             return jsonify(results)
         else:
             logger.info(f"No URLs found to crawl")
