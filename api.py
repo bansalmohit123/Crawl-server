@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from typing import List
 from pydantic import BaseModel, HttpUrl, ValidationError
-from web import fetch_urls, crawl_sequential,get_pydantic_ai_docs_urls
+from web import fetch_urls, crawl_sequential,get_pydantic_ai_docs_urls,crawl_parallel
 from crawl4ai import *
 import logging
 import asyncio
@@ -53,7 +53,7 @@ async def crawl_website():
         urls = get_pydantic_ai_docs_urls(str(sitemap_request.url))
         if urls:
             logger.info(f"Found {len(urls)} URLs to crawl")
-            results = await crawl_sequential(urls)
+            results = await crawl_parallel(urls)
             return jsonify(results)
         else:
             logger.info(f"No URLs found to crawl")
