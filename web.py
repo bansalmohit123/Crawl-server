@@ -62,119 +62,77 @@ async def fetch_urls(urls: List[str]) -> List[str]:
         logger.error(f"Error in fetch_urls: {str(e)}")
         return []
 
-async def crawl_sitemap(sitemap_url: str) -> List[str]:
+async def crawl_sequential(urls: List[str]) -> List[str]:
     """
-    Crawl an entire sitemap and process all URLs.
+    Crawl a list of URLs sequentially with session reuse and return the list of markdown content.
     
     Args:
-        sitemap_url (str): URL of the sitemap
+        urls (List[str]): List of URLs to crawl
         
     Returns:
-        List[str]: List of processed markdown content from all URLs
+        List[str]: List of processed markdown content for each URL
     """
+    logger.info("\n=== Sequential Crawling with Session Reuse ===")
+
+    browser_config = BrowserConfig(
+        headless=True,
+        # For better performance in Docker or low-memory environments:
+        extra_args=["--disable-gpu", "--disable-dev-shm-usage", "--no-sandbox"],
+    )
+
+    crawl_config = CrawlerRunConfig(
+        markdown_generator=DefaultMarkdownGenerator()
+    )
+
+    # Create the crawler (opens the browser)
+    crawler = AsyncWebCrawler(config=browser_config)
+    await crawler.start()
+
+    contents = []
     try:
-        urls = get_urls_from_sitemap(sitemap_url)
-        if not urls:
-            logger.warning(f"No URLs found in sitemap: {sitemap_url}")
-            return []
-
-        logger.info(f"Found {len(urls)} URLs in sitemap")
-        
-        # Configure browser for better performance
-        browser_config = BrowserConfig(
-            headless=True,
-            extra_args=[
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--no-sandbox",
-                "--disable-extensions"
-            ]
-        )
-
-        # Configure crawler
-        crawl_config = CrawlerRunConfig(
-            markdown_generator=DefaultMarkdownGenerator(
-                content_filter=PruningContentFilter(threshold=0.6),
-                options={
-                    "ignore_links": True,
-                    "body_width": 1000,
-                    "escape_html": True,
-                    "skip_internal_links": True
-                }
+        session_id = "session1"  # Reuse the same session across all URLs
+        for url in urls:
+            result = await crawler.arun(
+                url=url,
+                config=crawl_config,
+                session_id=session_id
             )
-        )
-
-        contents = []
-        async with AsyncWebCrawler(config=browser_config) as crawler:
-            session_id = "sitemap_session"  # Reuse session for better performance
-            
-            for url in urls:
-                try:
-                    result = await crawler.arun(
-                        url=url,
-                        config=crawl_config,
-                        session_id=session_id
-                    )
-                    
-                    if result.success:
-                        contents.append(result.markdown_v2.fit_markdown)
-                        logger.info(f"Successfully crawled: {url}")
-                    else:
-                        logger.error(f"Failed to crawl {url}: {result.error_message}")
-                        contents.append("")
-                except Exception as e:
-                    logger.error(f"Error processing {url}: {str(e)}")
-                    contents.append("")
-
-        return contents
-    except Exception as e:
-        logger.error(f"Error in crawl_sitemap: {str(e)}")
-        return []
-
-def get_urls_from_sitemap(sitemap_url: str) -> List[str]:
-    """
-    Extract all URLs from a sitemap.
+            if result.success:
+                logger.info(f"Successfully crawled: {url}")
+                contents.append(result.markdown_v2.raw_markdown)
+            else:
+                logger.error(f"Failed: {url} - Error: {result.error_message}")
+                contents.append("")
+    finally:
+        # After all URLs are done, close the crawler (and the browser)
+        await crawler.close()
     
-    Args:
-        sitemap_url (str): URL of the sitemap
-        
-    Returns:
-        List[str]: List of URLs found in the sitemap
+    return contents
+
+
+
+def get_pydantic_ai_docs_urls(sitemap_url: str)-> List[str]:
     """
+    Fetches all URLs from the Pydantic AI documentation.
+    Uses the sitemap (https://ai.pydantic.dev/sitemap.xml) to get these URLs.
+    
+    Returns:
+        List[str]: List of URLs
+    """            
+    # sitemap_url = "https://ai.pydantic.dev/sitemap.xml"
     try:
-        response = requests.get(sitemap_url, timeout=30)
+        response = requests.get(sitemap_url)
         response.raise_for_status()
         
         # Parse the XML
         root = ElementTree.fromstring(response.content)
         
-        # Handle different sitemap formats
-        namespaces = {
-            'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9',
-            'xhtml': 'http://www.w3.org/1999/xhtml'
-        }
-        
-        urls = []
-        
-        # Check for sitemap index
-        sitemaps = root.findall('.//ns:loc', namespaces)
-        if not sitemaps:
-            # Direct sitemap
-            urls = [loc.text for loc in root.findall('.//ns:loc', namespaces)]
-        else:
-            # Sitemap index - fetch each referenced sitemap
-            for sitemap in sitemaps:
-                sub_sitemap_url = sitemap.text
-                try:
-                    sub_urls = get_urls_from_sitemap(sub_sitemap_url)
-                    urls.extend(sub_urls)
-                except Exception as e:
-                    logger.error(f"Error processing sub-sitemap {sub_sitemap_url}: {str(e)}")
+        # Extract all URLs from the sitemap
+        # The namespace is usually defined in the root element
+        namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+        urls = [loc.text for loc in root.findall('.//ns:loc', namespace)]
         
         return urls
-    except requests.RequestException as e:
-        logger.error(f"Error fetching sitemap {sitemap_url}: {str(e)}")
-        return []
     except Exception as e:
-        logger.error(f"Error parsing sitemap {sitemap_url}: {str(e)}")
-        return []
+        print(f"Error fetching sitemap: {e}")
+        return []    

@@ -2,9 +2,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from typing import List
 from pydantic import BaseModel, HttpUrl, ValidationError
-from web import fetch_urls, crawl_sitemap
+from web import fetch_urls, crawl_sequential,get_pydantic_ai_docs_urls
+from crawl4ai import *
 import logging
-
+import asyncio
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,16 +39,24 @@ def crawl_urls():
         return jsonify({"detail": str(e)}), 500
 
 @app.route("/website-url", methods=["POST"])
-def crawl_website():
+async def crawl_website():
     """
     Crawl an entire website using its sitemap.
     """
     try:
         data = request.json
         sitemap_request = SitemapRequest(**data)
+      
         logger.info(f"Received request to crawl sitemap: {sitemap_request.url}")
-        results = crawl_sitemap(str(sitemap_request.url))
-        return jsonify(results)
+        # Run the async function synchronously
+        # results = asyncio.run(crawl_sitemap(str(sitemap_request.url)))
+        urls = get_pydantic_ai_docs_urls(str(sitemap_request.url))
+        if urls:
+            logger.info(f"Found {len(urls)} URLs to crawl")
+            results = await crawl_sequential(urls)
+            return jsonify(results)
+        else:
+            logger.info(f"No URLs found to crawl")
     except ValidationError as e:
         logger.error(f"Validation error in website-url endpoint: {str(e)}")
         return jsonify({"detail": str(e)}), 400
@@ -68,6 +77,8 @@ def hello_world():
     Hello World endpoint.
     """
     return jsonify({"message": "Hello, World!"})
+
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
