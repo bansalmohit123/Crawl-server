@@ -1,16 +1,17 @@
 from typing import List
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
-from fastapi import HTTPException
 from crawl4ai.content_filter_strategy import PruningContentFilter
 import requests
 from xml.etree import ElementTree
 import logging
-# from urllib.parse import urljoin
+from flask import Flask, jsonify, request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
 
 async def fetch_urls(urls: List[str]) -> List[str]:
     """
@@ -59,7 +60,7 @@ async def fetch_urls(urls: List[str]) -> List[str]:
         return contents
     except Exception as e:
         logger.error(f"Error in fetch_urls: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error fetching URLs: {str(e)}")
+        return []
 
 async def crawl_sitemap(sitemap_url: str) -> List[str]:
     """
@@ -128,7 +129,7 @@ async def crawl_sitemap(sitemap_url: str) -> List[str]:
         return contents
     except Exception as e:
         logger.error(f"Error in crawl_sitemap: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return []
 
 def get_urls_from_sitemap(sitemap_url: str) -> List[str]:
     """
