@@ -29,7 +29,10 @@ def crawl_urls():
         data = request.json
         crawl_request = CrawlRequest(**data)
         logger.info(f"Received request to crawl {len(crawl_request.urls)} URLs")
-        results = fetch_urls([str(url) for url in crawl_request.urls])
+
+        # Use asyncio.run to run the async function
+        results = asyncio.run(fetch_urls([str(url) for url in crawl_request.urls]))
+
         return jsonify(results)
     except ValidationError as e:
         logger.error(f"Validation error in crawl endpoint: {str(e)}")
